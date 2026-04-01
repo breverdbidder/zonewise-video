@@ -18,27 +18,38 @@ jobs:
         with:
           node-version: "20"
 
-      - name: Install system deps (ffmpeg + Chrome)
+      - name: Install system deps (ffmpeg + Chromium libs)
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y ffmpeg chromium-browser
-          echo "CHROME_PATH=$(which chromium-browser)" >> $GITHUB_ENV
+          sudo apt-get install -y \
+            ffmpeg \
+            libnss3 \
+            libatk1.0-0 \
+            libatk-bridge2.0-0 \
+            libcups2 \
+            libdrm2 \
+            libxkbcommon0 \
+            libxcomposite1 \
+            libxdamage1 \
+            libxrandr2 \
+            libgbm1 \
+            libasound2 \
+            chromium-browser
 
       - name: Install dependencies
-        run: npm install --legacy-peer-deps
+        run: npm install
+
+      - name: Install Remotion browser
+        run: npx remotion browser install
 
       - name: Create output directory
         run: mkdir -p out
 
       - name: Render full video (3 min MP4)
-        run: npx @revideo/renderer render src/project.ts --output out/zonewise-demo.mp4
-        env:
-          PUPPETEER_EXECUTABLE_PATH: ${{ env.CHROME_PATH }}
+        run: npx remotion render src/index.ts ZoneWiseV2 out/zonewise-demo-v2.mp4 --fps=30 --width=1920 --height=1080 --concurrency=4 --gl=swiftshader
 
-      - name: Render hook clip (Scene 1 — first 25 s)
-        run: npx @revideo/renderer render src/project.ts --output out/hook.mp4 --range 0:750
-        env:
-          PUPPETEER_EXECUTABLE_PATH: ${{ env.CHROME_PATH }}
+      - name: Render hook clip (first 25s — frames 0-749)
+        run: npx remotion render src/index.ts ZoneWiseV2 out/hook.mp4 --fps=30 --width=1920 --height=1080 --frames=0-749 --concurrency=4 --gl=swiftshader
 
       - name: Convert hook to GIF
         run: |
@@ -46,18 +57,18 @@ jobs:
             -vf "fps=15,scale=1280:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse" \
             out/hook.gif
 
-      # ── Artifacts FIRST (before any upload that might fail) ─────────
+      # ── Artifacts FIRST (before any upload that might fail) ─────────────
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: zonewise-gtm-v2
           path: |
-            out/zonewise-demo.mp4
+            out/zonewise-demo-v2.mp4
             out/hook.mp4
             out/hook.gif
           retention-days: 30
 
-      # ── Supabase upload (best-effort) ────────────────────────────────
+      # ── Supabase upload (best-effort) ────────────────────────────────────
       - name: Upload to Supabase Storage
         continue-on-error: true
         run: |
@@ -65,7 +76,7 @@ jobs:
             "${{ secrets.SUPABASE_URL }}/storage/v1/object/edp-screenshots/video/zonewise-demo-v2.mp4" \
             -H "Authorization: Bearer ${{ secrets.SUPABASE_KEY }}" \
             -H "Content-Type: video/mp4" \
-            --data-binary @out/zonewise-demo.mp4
+            --data-binary @out/zonewise-demo-v2.mp4
 
           curl -X POST \
             "${{ secrets.SUPABASE_URL }}/storage/v1/object/edp-screenshots/video/hook-v2.gif" \
@@ -76,7 +87,7 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
 
-      # ── Comment on issue #202 ────────────────────────────────────────
+      # ── Comment on issue #202 ─────────────────────────────────────────────
       - name: Comment on issue #202
         uses: actions/github-script@v7
         with:
@@ -94,31 +105,32 @@ jobs:
               owner: 'breverdbidder',
               repo: 'cli-anything-biddeed',
               issue_number: 202,
-              body: `## 🎬 ZoneWise GTM Video V2 — Rendered
+              body: `## 🎬 ZoneWise GTM Video V2 — Rendered (Remotion)
 
-            **Framework:** Revideo (Motion Canvas fork) — headless, no Remotion
+            **Framework:** Remotion v4 — React-based, reliable CI rendering
             **Design:** Light mode — white/navy/#F59E0B, Apple keynote aesthetic
+            **Script:** V2 — Ariel's story + nationwide narrative
             **Duration:** 3:00 (180 s · 5400 frames @ 30 fps)
 
             ---
 
             **Full 3-min MP4:** ${videoUrl}
 
-            **Hook clip GIF (Scene 1 — first 25 s):** ${gifUrl}
+            **Hook clip GIF (first 25 s):** ${gifUrl}
 
             ---
 
             ### Scene Breakdown
 
-            | # | Scene | Time | Duration | Theme |
-            |---|-------|------|----------|-------|
-            | 1 | THE PAIN | 0:00–0:25 | 25 s | $47k→$189k gap with scramble decode |
-            | 2 | THE OLD WAY | 0:25–0:50 | 25 s | Spreadsheet chaos → stat build-up |
-            | 3 | THE BREAKTHROUGH | 0:50–1:05 | 15 s | ZoneWise.AI logo reveal |
-            | 4 | 12-STEP PIPELINE | 1:05–1:50 | 45 s | Cards spring in + PATENT PENDING stamp |
-            | 5 | THE PRODUCT | 1:50–2:25 | 35 s | Dashboard + map + chat + alert |
-            | 6 | THE MOAT | 2:25–2:45 | 20 s | Pyramid layers + exponential curve |
-            | 7 | CTA | 2:45–3:00 | 15 s | Buttons + logo + fade to white |
+            | # | Scene | Frames | Duration | Theme |
+            |---|-------|--------|----------|-------|
+            | 1 | Founder's Story | 0–899 | 30 s | "20 years in the trenches" — orange scramble decode |
+            | 2 | Two Codes Locked | 900–1649 | 25 s | Courthouse + zoning split — "Both locked. Until now." |
+            | 3 | Both Codes Cracked | 1650–2099 | 15 s | US map · Florida highlights · "For everyone. Everywhere." |
+            | 4 | 12-Step Pipeline | 2100–3299 | 40 s | Cards spring in — PATENT PENDING stamp |
+            | 5 | For Everyone | 3300–4199 | 30 s | 4 personas · Arabic/Spanish/Hebrew · 17 channels |
+            | 6 | The Moat | 4200–4799 | 20 s | Pyramid layers · compounding growth curve |
+            | 7 | CTA | 4800–5399 | 20 s | "Revolution evolved." · Explore Free + Start Pro |
 
             ---
 
