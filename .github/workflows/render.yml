@@ -1,0 +1,116 @@
+name: Render ZoneWise Demo Video
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      scene:
+        description: "Scene to render (ZoneWiseDemo or ZoneWiseHook)"
+        required: false
+        default: "ZoneWiseDemo"
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Chrome for Remotion
+        run: npx remotion browser ensure
+
+      - name: Render full video
+        run: |
+          npx remotion render src/index.ts ZoneWiseDemo out/zonewise-demo.mp4 \
+            --fps=30 \
+            --width=1920 \
+            --height=1080 \
+            --concurrency=4
+        env:
+          REMOTION_ALLOW_AUDIO: "false"
+
+      - name: Render hook clip (first 15s)
+        run: |
+          npx remotion render src/index.ts ZoneWiseHook out/hook.mp4 \
+            --fps=30 \
+            --width=1920 \
+            --height=1080
+
+      - name: Convert hook to GIF
+        run: |
+          sudo apt-get install -y ffmpeg
+          ffmpeg -i out/hook.mp4 \
+            -vf "fps=15,scale=1280:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse" \
+            out/hook.gif
+
+      - name: Upload to Supabase Storage
+        run: |
+          curl -X POST \
+            "${{ secrets.SUPABASE_URL }}/storage/v1/object/edp-screenshots/video/zonewise-demo.mp4" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_KEY }}" \
+            -H "Content-Type: video/mp4" \
+            --data-binary @out/zonewise-demo.mp4
+
+          curl -X POST \
+            "${{ secrets.SUPABASE_URL }}/storage/v1/object/edp-screenshots/video/hook.gif" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_KEY }}" \
+            -H "Content-Type: image/gif" \
+            --data-binary @out/hook.gif
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+
+      - name: Comment on issue #196
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const videoUrl = `${process.env.SUPABASE_URL}/storage/v1/object/public/edp-screenshots/video/zonewise-demo.mp4`;
+            const gifUrl = `${process.env.SUPABASE_URL}/storage/v1/object/public/edp-screenshots/video/hook.gif`;
+
+            await github.rest.issues.createComment({
+              owner: 'breverdbidder',
+              repo: 'cli-anything-biddeed',
+              issue_number: 196,
+              body: `## 🎬 ZoneWise Demo Video Rendered
+
+            **Full 3-minute video (MP4):** ${videoUrl}
+
+            **Hook clip GIF (first 15s):** ${gifUrl}
+
+            ### Scene breakdown:
+            | Scene | Duration | Frames |
+            |-------|----------|--------|
+            | 1. Hook | 0:00-0:15 | 0-450 |
+            | 2. The Problem | 0:15-0:45 | 450-1350 |
+            | 3. 12-Step Pipeline | 0:45-1:30 | 1350-2700 |
+            | 4. Product Demo | 1:30-2:15 | 2700-3900 |
+            | 5. The Moat | 2:15-2:45 | 3900-4950 |
+            | 6. CTA | 2:45-3:00 | 4950-5400 |
+
+            Built with Remotion + React + Three.js. No After Effects. No screen recording.
+
+            Rendered by GitHub Actions: ${{ github.run_id }}
+            `
+            });
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: zonewise-video-${{ github.sha }}
+          path: |
+            out/zonewise-demo.mp4
+            out/hook.gif
+          retention-days: 30
