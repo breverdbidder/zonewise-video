@@ -1,28 +1,21 @@
 {
   "name": "zonewise-video",
-  "version": "1.0.0",
-  "description": "ZoneWise 3-minute GTM demo video built with Remotion",
+  "version": "2.0.0",
+  "description": "ZoneWise 3-min GTM video — Revideo + light mode + storytelling",
   "scripts": {
-    "start": "remotion studio",
-    "build": "remotion render src/index.ts ZoneWiseDemo out/zonewise-demo.mp4 --fps=30",
-    "render": "remotion render src/index.ts ZoneWiseDemo out/zonewise-demo.mp4 --fps=30",
-    "render-hook-gif": "remotion render src/index.ts ZoneWiseHook out/hook.mp4 --fps=30 && ffmpeg -i out/hook.mp4 -vf 'fps=15,scale=1280:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse' out/hook.gif"
+    "start": "vite",
+    "render": "npx @revideo/renderer render src/project.ts --output out/zonewise-demo.mp4",
+    "render-hook": "npx @revideo/renderer render src/project.ts --output out/hook.mp4 --range 0:750",
+    "render-hook-gif": "npm run render-hook && ffmpeg -i out/hook.mp4 -vf 'fps=15,scale=1280:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse' out/hook.gif"
   },
   "dependencies": {
-    "@react-three/drei": "^9.99.0",
-    "@react-three/fiber": "^8.15.0",
-    "gsap": "^3.12.5",
-    "remotion": "^4.0.180",
-    "three": "^0.162.0"
+    "@revideo/2d": "^0.4.0",
+    "@revideo/core": "^0.4.0"
   },
   "devDependencies": {
-    "@remotion/bundler": "^4.0.180",
-    "@remotion/cli": "^4.0.180",
-    "@remotion/renderer": "^4.0.180",
-    "@types/react": "^18.2.0",
-    "@types/three": "^0.162.0",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "typescript": "^5.0.0"
+    "@revideo/renderer": "^0.4.0",
+    "@revideo/vite-plugin": "^0.4.0",
+    "typescript": "^5.0.0",
+    "vite": "^5.0.0"
   }
 }
