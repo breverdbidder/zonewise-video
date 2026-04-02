@@ -1,10 +1,12 @@
 /**
  * Scene 4 — 12-STEP PIPELINE (2100–3299 frames = 40s)
- * White bg. 12 Navy cards with Orange numbers spring in.
- * "PATENT PENDING — 12 CLAIMS" stamp at end.
+ * Background: data-command-center.jpg — zoom-in-pan-left
+ * Navy cards spring in over dark cinematic backdrop. Patent stamp.
  */
 import React from 'react';
 import {AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig} from 'remotion';
+import {SceneBackground} from '../components/SceneBackground';
+import {FrostedCard, headlineShadow} from '../components/FrostedCard';
 
 const NAVY = '#1E3A5F';
 const ORANGE = '#F59E0B';
@@ -28,67 +30,66 @@ export const Scene4: React.FC = () => {
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
 
-  // Title fades in
   const titleOp = interpolate(frame, [0, 30], [0, 1], {extrapolateRight: 'clamp', extrapolateLeft: 'clamp'});
 
-  // Each card springs in with stagger: card i starts at frame 40 + i*40
   const cardEntries = STEPS.map((_, i) => {
     const startFrame = 40 + i * 40;
-    const sp = spring({
-      frame: Math.max(0, frame - startFrame),
-      fps,
-      config: {stiffness: 120, damping: 20, mass: 0.8},
-    });
-    return sp;
+    return spring({frame: Math.max(0, frame - startFrame), fps, config: {stiffness: 120, damping: 20, mass: 0.8}});
   });
 
-  // Patent stamp appears at frame 40 + 12*40 = 520, animates over 30 frames
   const stampFrame = 520;
-  const stampSpring = spring({
-    frame: Math.max(0, frame - stampFrame),
-    fps,
-    config: {stiffness: 200, damping: 15, mass: 0.5},
-  });
+  const stampSpring = spring({frame: Math.max(0, frame - stampFrame), fps, config: {stiffness: 200, damping: 15, mass: 0.5}});
   const stampScale = interpolate(stampSpring, [0, 1], [0, 1]);
   const stampRotate = interpolate(stampSpring, [0, 1], [-15, -8]);
 
   return (
     <AbsoluteFill
       style={{
-        background: '#FFFFFF',
+        background: '#000',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'flex-start',
         fontFamily: 'Inter, system-ui, sans-serif',
-        padding: '48px 80px',
+        padding: '40px 72px',
       }}
     >
+      <SceneBackground
+        imageName="data-command-center"
+        durationInFrames={1200}
+        kenBurns="zoom-in-pan-left"
+        overlayOpacity={0.65}
+      />
+
       {/* Title */}
-      <div
+      <FrostedCard
         style={{
           opacity: titleOp,
           textAlign: 'center',
-          marginBottom: 40,
+          marginBottom: 32,
+          padding: '20px 56px',
+          position: 'relative',
+          zIndex: 1,
         }}
       >
-        <div style={{fontSize: 15, fontWeight: 700, letterSpacing: 4, color: '#94A3B8', textTransform: 'uppercase', marginBottom: 12}}>
+        <div style={{fontSize: 12, fontWeight: 700, letterSpacing: 4, color: '#94A3B8', textTransform: 'uppercase', marginBottom: 8}}>
           The Pipeline
         </div>
-        <div style={{fontSize: 56, fontWeight: 800, color: NAVY, letterSpacing: '-0.5px'}}>
+        <div style={{fontSize: 48, fontWeight: 800, color: NAVY, letterSpacing: '-0.5px', ...headlineShadow}}>
           12 Steps. Zero Guesswork.
         </div>
-      </div>
+      </FrostedCard>
 
       {/* Grid: 4 cols × 3 rows */}
       <div
         style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(4, 1fr)',
-          gap: 20,
+          gap: 16,
           width: '100%',
           maxWidth: 1480,
           position: 'relative',
+          zIndex: 1,
         }}
       >
         {STEPS.map((step, i) => {
@@ -101,52 +102,35 @@ export const Scene4: React.FC = () => {
               key={i}
               style={{
                 background: NAVY,
-                borderRadius: 16,
-                padding: '24px 24px',
+                borderRadius: 14,
+                padding: '20px 20px',
                 opacity,
                 transform: `translateY(${translateY}px)`,
                 display: 'flex',
                 flexDirection: 'column',
-                gap: 8,
+                gap: 6,
                 position: 'relative',
                 overflow: 'hidden',
+                boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
+                border: '1px solid rgba(255,255,255,0.08)',
               }}
             >
-              {/* Corner accent */}
-              <div
-                style={{
-                  position: 'absolute',
-                  top: 0,
-                  right: 0,
-                  width: 48,
-                  height: 48,
-                  background: `${ORANGE}15`,
-                  borderBottomLeftRadius: 24,
-                }}
-              />
-              <div
-                style={{
-                  fontSize: 32,
-                  fontWeight: 800,
-                  color: ORANGE,
-                  lineHeight: 1,
-                  fontVariantNumeric: 'tabular-nums',
-                }}
-              >
+              <div style={{position: 'absolute', top: 0, right: 0, width: 44, height: 44, background: `${ORANGE}15`, borderBottomLeftRadius: 22}} />
+              <div style={{fontSize: 28, fontWeight: 800, color: ORANGE, lineHeight: 1, fontVariantNumeric: 'tabular-nums'}}>
                 {step.num}
               </div>
-              <div style={{fontSize: 20, fontWeight: 700, color: '#FFFFFF', marginTop: 4}}>{step.title}</div>
-              <div style={{fontSize: 13, color: '#94A3B8', lineHeight: 1.5}}>{step.desc}</div>
+              <div style={{fontSize: 17, fontWeight: 700, color: '#FFFFFF', marginTop: 2}}>{step.title}</div>
+              <div style={{fontSize: 12, color: '#94A3B8', lineHeight: 1.4}}>{step.desc}</div>
             </div>
           );
         })}
 
-        {/* PATENT PENDING stamp — absolutely positioned */}
+        {/* PATENT PENDING stamp */}
         <div
           style={{
             position: 'absolute',
-            right: -20,
-            bottom: -10,
+            right: -16,
+            bottom: -8,
             transform: `scale(${stampScale}) rotate(${stampRotate}deg)`,
             transformOrigin: 'center center',
             zIndex: 10,
@@ -156,34 +140,15 @@ export const Scene4: React.FC = () => {
             style={{
               border: `4px solid ${ORANGE}`,
               borderRadius: 8,
-              padding: '12px 24px',
+              padding: '12px 22px',
               textAlign: 'center',
-              background: 'white',
-              boxShadow: `0 0 0 2px ${ORANGE}40`,
+              background: 'rgba(255,255,255,0.92)',
+              boxShadow: `0 0 0 2px ${ORANGE}40, 0 8px 24px rgba(0,0,0,0.3)`,
+              backdropFilter: 'blur(4px)',
             }}
           >
-            <div
-              style={{
-                fontSize: 22,
-                fontWeight: 900,
-                color: ORANGE,
-                letterSpacing: 3,
-                textTransform: 'uppercase',
-              }}
-            >
-              PATENT PENDING
-            </div>
-            <div
-              style={{
-                fontSize: 13,
-                fontWeight: 700,
-                color: NAVY,
-                letterSpacing: 2,
-                marginTop: 4,
-              }}
-            >
-              12 CLAIMS
-            </div>
+            <div style={{fontSize: 20, fontWeight: 900, color: ORANGE, letterSpacing: 3, textTransform: 'uppercase'}}>PATENT PENDING</div>
+            <div style={{fontSize: 12, fontWeight: 700, color: NAVY, letterSpacing: 2, marginTop: 4}}>12 CLAIMS</div>
           </div>
         </div>
       </div>

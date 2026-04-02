@@ -1,4 +1,4 @@
-name: Render ZoneWise GTM Video v2
+name: Render ZoneWise Summit Hollywood Video
 
 on:
   push:
@@ -8,7 +8,7 @@ on:
 jobs:
   render:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 120
 
     steps:
       - uses: actions/checkout@v4
@@ -39,6 +39,12 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - name: Generate / download scene images
+        run: node scripts/generate-images.mjs
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        # Best-effort: if Gemini key is absent the script falls back to Unsplash CDN
+
       - name: Install Remotion browser
         run: npx remotion browser install
 
@@ -46,7 +52,7 @@ jobs:
         run: mkdir -p out
 
       - name: Render full video (3 min MP4)
-        run: npx remotion render src/index.ts ZoneWiseV2 out/zonewise-demo-v2.mp4 --fps=30 --width=1920 --height=1080 --concurrency=4 --gl=swiftshader
+        run: npx remotion render src/index.ts ZoneWiseV2 out/zonewise-summit-hollywood.mp4 --fps=30 --width=1920 --height=1080 --concurrency=4 --gl=swiftshader
 
       - name: Render hook clip (first 25s — frames 0-749)
         run: npx remotion render src/index.ts ZoneWiseV2 out/hook.mp4 --fps=30 --width=1920 --height=1080 --frames=0-749 --concurrency=4 --gl=swiftshader
@@ -61,9 +67,9 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: zonewise-gtm-v2
+          name: zonewise-summit-hollywood
           path: |
-            out/zonewise-demo-v2.mp4
+            out/zonewise-summit-hollywood.mp4
             out/hook.mp4
             out/hook.gif
           retention-days: 30
@@ -73,13 +79,13 @@ jobs:
         continue-on-error: true
         run: |
           curl -X POST \
-            "${{ secrets.SUPABASE_URL }}/storage/v1/object/edp-screenshots/video/zonewise-demo-v2.mp4" \
+            "${{ secrets.SUPABASE_URL }}/storage/v1/object/edp-screenshots/video/zonewise-summit-hollywood.mp4" \
             -H "Authorization: Bearer ${{ secrets.SUPABASE_KEY }}" \
             -H "Content-Type: video/mp4" \
-            --data-binary @out/zonewise-demo-v2.mp4
+            --data-binary @out/zonewise-summit-hollywood.mp4
 
           curl -X POST \
-            "${{ secrets.SUPABASE_URL }}/storage/v1/object/edp-screenshots/video/hook-v2.gif" \
+            "${{ secrets.SUPABASE_URL }}/storage/v1/object/edp-screenshots/video/hook-summit.gif" \
             -H "Authorization: Bearer ${{ secrets.SUPABASE_KEY }}" \
             -H "Content-Type: image/gif" \
             --data-binary @out/hook.gif
@@ -95,20 +101,20 @@ jobs:
           script: |
             const supaUrl = process.env.SUPABASE_URL || '';
             const videoUrl = supaUrl
-              ? `${supaUrl}/storage/v1/object/public/edp-screenshots/video/zonewise-demo-v2.mp4`
+              ? `${supaUrl}/storage/v1/object/public/edp-screenshots/video/zonewise-summit-hollywood.mp4`
               : '_(Supabase upload skipped — download from Actions artifacts)_';
             const gifUrl = supaUrl
-              ? `${supaUrl}/storage/v1/object/public/edp-screenshots/video/hook-v2.gif`
+              ? `${supaUrl}/storage/v1/object/public/edp-screenshots/video/hook-summit.gif`
               : '_(download from Actions artifacts)_';
 
             await github.rest.issues.createComment({
               owner: 'breverdbidder',
               repo: 'cli-anything-biddeed',
               issue_number: 202,
-              body: `## 🎬 ZoneWise GTM Video V2 — Rendered (Remotion)
+              body: `## 🎬 ZoneWise Summit Hollywood — Rendered
 
             **Framework:** Remotion v4 — React-based, reliable CI rendering
-            **Design:** Light mode — white/navy/#F59E0B, Apple keynote aesthetic
+            **Design:** Cinematic photorealistic — 10 scene images, Ken Burns, frosted glass, film grain
             **Script:** V2 — Ariel's story + nationwide narrative
             **Duration:** 3:00 (180 s · 5400 frames @ 30 fps)
 
@@ -122,15 +128,23 @@ jobs:
 
             ### Scene Breakdown
 
-            | # | Scene | Frames | Duration | Theme |
-            |---|-------|--------|----------|-------|
-            | 1 | Founder's Story | 0–899 | 30 s | "20 years in the trenches" — orange scramble decode |
-            | 2 | Two Codes Locked | 900–1649 | 25 s | Courthouse + zoning split — "Both locked. Until now." |
-            | 3 | Both Codes Cracked | 1650–2099 | 15 s | US map · Florida highlights · "For everyone. Everywhere." |
-            | 4 | 12-Step Pipeline | 2100–3299 | 40 s | Cards spring in — PATENT PENDING stamp |
-            | 5 | For Everyone | 3300–4199 | 30 s | 4 personas · Arabic/Spanish/Hebrew · 17 channels |
-            | 6 | The Moat | 4200–4799 | 20 s | Pyramid layers · compounding growth curve |
-            | 7 | CTA | 4800–5399 | 20 s | "Revolution evolved." · Explore Free + Start Pro |
+            | # | Scene | Frames | Duration | Background Image | Transition Out |
+            |---|-------|--------|----------|-----------------|----------------|
+            | 1 | Founder's Story | 0–899 | 30 s | hero-property-golden-hour | Fade through white |
+            | 2 | Two Codes Locked | 900–1649 | 25 s | messy-desk-spreadsheets | Curtain split |
+            | 3 | Both Codes Cracked | 1650–2099 | 15 s | us-map-florida-highlighted | Zoom into map |
+            | 4 | 12-Step Pipeline | 2100–3299 | 40 s | data-command-center | Slide left |
+            | 5 | For Everyone | 3300–4199 | 30 s | per-persona cycling (3 images) | Slide left |
+            | 6 | The Moat | 4200–4799 | 20 s | pyramid-data-layers | Slide left |
+            | 7 | CTA | 4800–5399 | 20 s | sold-home-palm-trees | Fade to white |
+
+            ### Cinematic Effects
+            - **Ken Burns:** spring-eased zoom-in / zoom-out / pan per scene
+            - **Film grain:** SVG feTurbulence noise overlay at 7% opacity
+            - **Vignette:** radial-gradient dark edges on every scene
+            - **Frosted glass:** \`rgba(255,255,255,0.87)\` + \`backdrop-filter: blur(12px)\`
+            - **Typography:** Inter 72px Navy, Orange accents, text-shadow
+            - **Images:** Gemini Imagen 3 (or Unsplash CDN fallback) — 1920×1080
 
             ---
 
