@@ -1,4 +1,4 @@
-name: Render ZoneWise Summit Hollywood Video
+name: Render ZoneWise Hollywood Video
 
 on:
   push:
@@ -8,7 +8,7 @@ on:
 jobs:
   render:
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 60
 
     steps:
       - uses: actions/checkout@v4
@@ -18,142 +18,49 @@ jobs:
         with:
           node-version: "20"
 
-      - name: Install system deps (ffmpeg + Chromium libs)
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y \
-            ffmpeg \
-            libnss3 \
-            libatk1.0-0 \
-            libatk-bridge2.0-0 \
-            libcups2 \
-            libdrm2 \
-            libxkbcommon0 \
-            libxcomposite1 \
-            libxdamage1 \
-            libxrandr2 \
-            libgbm1 \
-            libasound2
-            
-
       - name: Install dependencies
         run: npm install
 
       - name: Install Chrome for Remotion
         run: npx remotion browser ensure
 
-      - name: Generate / download scene images
-        run: node scripts/generate-images.mjs
-        env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-        # Best-effort: if Gemini key is absent the script falls back to Unsplash CDN
-
-      - name: Install Remotion browser
-        run: npx remotion browser install
+      - name: Install ffmpeg
+        run: sudo apt-get update -qq && sudo apt-get install -y ffmpeg
 
       - name: Create output directory
         run: mkdir -p out
 
-      - name: Render full video (3 min MP4)
-        run: npx remotion render src/index.ts ZoneWiseV2 out/zonewise-summit-hollywood.mp4 --fps=30 --width=1920 --height=1080 --concurrency=4 --gl=swiftshader
+      - name: Render full video
+        run: |
+          npx remotion render src/index.ts ZoneWiseV2 out/zonewise-demo.mp4 \
+            --fps=30 \
+            --width=1920 \
+            --height=1080 \
+            --concurrency=4
+        env:
+          REMOTION_ALLOW_AUDIO: "false"
 
-      - name: Render hook clip (first 25s — frames 0-749)
-        run: npx remotion render src/index.ts ZoneWiseV2 out/hook.mp4 --fps=30 --width=1920 --height=1080 --frames=0-749 --concurrency=4 --gl=swiftshader
+      - name: Render hook clip (first 25s)
+        run: |
+          npx remotion render src/index.ts ZoneWiseHook out/hook.mp4 \
+            --fps=30 \
+            --width=1920 \
+            --height=1080
+        continue-on-error: true
 
       - name: Convert hook to GIF
         run: |
           ffmpeg -i out/hook.mp4 \
             -vf "fps=15,scale=1280:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse" \
             out/hook.gif
+        continue-on-error: true
 
-      # ── Artifacts FIRST (before any upload that might fail) ─────────────
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: zonewise-summit-hollywood
+          name: zonewise-hollywood
           path: |
-            out/zonewise-summit-hollywood.mp4
+            out/zonewise-demo.mp4
             out/hook.mp4
             out/hook.gif
           retention-days: 30
-
-      # ── Supabase upload (best-effort) ────────────────────────────────────
-      - name: Upload to Supabase Storage
-        continue-on-error: true
-        run: |
-          curl -X POST \
-            "${{ secrets.SUPABASE_URL }}/storage/v1/object/edp-screenshots/video/zonewise-summit-hollywood.mp4" \
-            -H "Authorization: Bearer ${{ secrets.SUPABASE_KEY }}" \
-            -H "Content-Type: video/mp4" \
-            --data-binary @out/zonewise-summit-hollywood.mp4
-
-          curl -X POST \
-            "${{ secrets.SUPABASE_URL }}/storage/v1/object/edp-screenshots/video/hook-summit.gif" \
-            -H "Authorization: Bearer ${{ secrets.SUPABASE_KEY }}" \
-            -H "Content-Type: image/gif" \
-            --data-binary @out/hook.gif
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-
-      # ── Comment on issue #202 ─────────────────────────────────────────────
-      - name: Comment on issue #202
-        uses: actions/github-script@v7
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const supaUrl = process.env.SUPABASE_URL || '';
-            const videoUrl = supaUrl
-              ? `${supaUrl}/storage/v1/object/public/edp-screenshots/video/zonewise-summit-hollywood.mp4`
-              : '_(Supabase upload skipped — download from Actions artifacts)_';
-            const gifUrl = supaUrl
-              ? `${supaUrl}/storage/v1/object/public/edp-screenshots/video/hook-summit.gif`
-              : '_(download from Actions artifacts)_';
-
-            await github.rest.issues.createComment({
-              owner: 'breverdbidder',
-              repo: 'cli-anything-biddeed',
-              issue_number: 202,
-              body: `## 🎬 ZoneWise Summit Hollywood — Rendered
-
-            **Framework:** Remotion v4 — React-based, reliable CI rendering
-            **Design:** Cinematic photorealistic — 10 scene images, Ken Burns, frosted glass, film grain
-            **Script:** V2 — Ariel's story + nationwide narrative
-            **Duration:** 3:00 (180 s · 5400 frames @ 30 fps)
-
-            ---
-
-            **Full 3-min MP4:** ${videoUrl}
-
-            **Hook clip GIF (first 25 s):** ${gifUrl}
-
-            ---
-
-            ### Scene Breakdown
-
-            | # | Scene | Frames | Duration | Background Image | Transition Out |
-            |---|-------|--------|----------|-----------------|----------------|
-            | 1 | Founder's Story | 0–899 | 30 s | hero-property-golden-hour | Fade through white |
-            | 2 | Two Codes Locked | 900–1649 | 25 s | messy-desk-spreadsheets | Curtain split |
-            | 3 | Both Codes Cracked | 1650–2099 | 15 s | us-map-florida-highlighted | Zoom into map |
-            | 4 | 12-Step Pipeline | 2100–3299 | 40 s | data-command-center | Slide left |
-            | 5 | For Everyone | 3300–4199 | 30 s | per-persona cycling (3 images) | Slide left |
-            | 6 | The Moat | 4200–4799 | 20 s | pyramid-data-layers | Slide left |
-            | 7 | CTA | 4800–5399 | 20 s | sold-home-palm-trees | Fade to white |
-
-            ### Cinematic Effects
-            - **Ken Burns:** spring-eased zoom-in / zoom-out / pan per scene
-            - **Film grain:** SVG feTurbulence noise overlay at 7% opacity
-            - **Vignette:** radial-gradient dark edges on every scene
-            - **Frosted glass:** \`rgba(255,255,255,0.87)\` + \`backdrop-filter: blur(12px)\`
-            - **Typography:** Inter 72px Navy, Orange accents, text-shadow
-            - **Images:** Gemini Imagen 3 (or Unsplash CDN fallback) — 1920×1080
-
-            ---
-
-            Rendered by GitHub Actions run [\`${{ github.run_id }}\`](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
-            Commit: \`${{ github.sha }}\`
-            `
-            });
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
