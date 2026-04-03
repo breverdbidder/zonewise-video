@@ -1,0 +1,195 @@
+name: Production Studio — Asset Generation
+on:
+  workflow_dispatch:
+    inputs:
+      phase:
+        description: "Which phase to run"
+        required: true
+        default: "all"
+        type: choice
+        options:
+          - all
+          - voiceover
+          - images
+          - pexels
+jobs:
+  generate-assets:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: breverdbidder/zonewise-video
+          token: ${{ secrets.GH_PAT }}
+
+      - name: Setup
+        run: |
+          mkdir -p public/audio public/assets/backgrounds public/assets/icons public/assets/personas public/footage
+          sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg jq python3
+
+      - name: Generate Voiceover (Google Cloud TTS)
+        if: inputs.phase == 'all' || inputs.phase == 'voiceover'
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          python3 - <<'PYSCRIPT'
+          import json, urllib.request, base64, os
+
+          key = os.environ["GEMINI_API_KEY"]
+          script = "Every week, hundreds of Florida properties go to auction. Most investors fly blind. Guessing at values. Missing hidden liens. Losing deals to better-prepared bidders. We built something to change that. The old way? Spreadsheets. Manual courthouse searches. Hours of research per property. By the time you have analyzed one deal, three more have slipped away. ZoneWise cracks both codes. Foreclosure auctions AND tax deed sales. Across all sixty seven Florida counties. One platform. Complete intelligence. Our twelve step pipeline does in seconds what takes humans days. Discovery. Scraping. Title search. Lien priority analysis. Tax certificates. Demographics. Machine learning scoring. Maximum bid calculation. Decision logging. Automated reports. Disposition tracking. Archive storage. Every step verified. Every decision logged. Built for everyone in the auction ecosystem. Investors get deal intelligence. Realtors get listing opportunities. Attorneys get due diligence automation. First time buyers get confidence. Thirteen patent claims. Zero competitors with this technology. Every day our data compounds. Every auction makes the system smarter. The moat only grows. Start free at zonewise dot A I. See every auction. Know every risk. Win every deal."
+
+          payload = json.dumps({
+              "contents": [{"parts": [{"text": script}]}],
+              "generationConfig": {"responseModalities": ["AUDIO"], "speechConfig": {"voiceConfig": {"prebuiltVoiceConfig": {"voiceName": "Kore"}}}}
+          }).encode()
+
+          req = urllib.request.Request(
+              f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key={key}",
+              data=payload,
+              headers={"Content-Type": "application/json"}
+          )
+
+          print("Generating voiceover with Gemini TTS (Kore voice)...")
+          resp = urllib.request.urlopen(req, timeout=120)
+          data = json.loads(resp.read())
+
+          for cand in data.get("candidates", []):
+              for part in cand.get("content", {}).get("parts", []):
+                  if "inlineData" in part:
+                      audio_bytes = base64.b64decode(part["inlineData"]["data"])
+                      with open("public/audio/voiceover.wav", "wb") as f:
+                          f.write(audio_bytes)
+                      print(f"Voiceover saved: {len(audio_bytes)//1024}KB")
+                      exit(0)
+
+          print("No audio generated")
+          print(json.dumps(data, indent=2)[:1000])
+          PYSCRIPT
+
+          if [ -f public/audio/voiceover.wav ]; then
+            ffmpeg -i public/audio/voiceover.wav -codec:a libmp3lame -qscale:a 2 public/audio/voiceover.mp3 -y
+            DURATION=$(ffprobe -v quiet -show_entries format=duration -of csv=p=0 public/audio/voiceover.mp3)
+            echo "Duration: ${DURATION}s"
+          fi
+
+      - name: Generate Scene Backgrounds (Nano Banana Pro)
+        if: inputs.phase == 'all' || inputs.phase == 'images'
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          python3 - <<'PYSCRIPT'
+          import json, urllib.request, base64, os, time
+
+          key = os.environ["GEMINI_API_KEY"]
+          scenes = [
+              ("scene1_founders_story", "A beautiful Florida waterfront property at golden hour, palm trees swaying, warm sunset light, aerial drone perspective, cinematic real estate photography, 16:9"),
+              ("scene2_the_problem", "Overhead view of a messy desk covered in spreadsheets, calculator, coffee cups, papers everywhere, stressed office environment, blue-gray cold lighting, 16:9"),
+              ("scene3_both_codes", "Digital visualization of Florida state map with 67 counties highlighted in navy blue and orange, data visualization style, dark background, modern tech, 16:9"),
+              ("scene4_pipeline", "Futuristic data command center with holographic displays showing real estate data, navy and orange color scheme, dark tech visualization, 16:9"),
+              ("scene5_for_everyone", "Four diverse professionals collaborating around a modern table with tablets showing property analytics, bright natural office light, professional photography, 16:9"),
+              ("scene6_the_moat", "Elegant patent document on dark navy background, golden embossed seal, Patent Pending text visible, premium legal aesthetic, 16:9"),
+              ("scene7_cta", "Beautiful Florida home with SOLD sign in front yard, palm trees, warm golden lighting, celebration atmosphere, American dream, 16:9")
+          ]
+
+          for name, prompt in scenes:
+              print(f"Generating {name}...")
+              payload = json.dumps({
+                  "contents": [{"parts": [{"text": f"Generate a photorealistic image: {prompt}"}]}],
+                  "generationConfig": {"responseModalities": ["IMAGE","TEXT"]}
+              }).encode()
+
+              req = urllib.request.Request(
+                  f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key={key}",
+                  data=payload,
+                  headers={"Content-Type": "application/json"}
+              )
+
+              try:
+                  resp = urllib.request.urlopen(req, timeout=60)
+                  data = json.loads(resp.read())
+                  for cand in data.get("candidates", []):
+                      for part in cand.get("content", {}).get("parts", []):
+                          if "inlineData" in part:
+                              img_bytes = base64.b64decode(part["inlineData"]["data"])
+                              mime = part["inlineData"].get("mimeType", "image/png")
+                              ext = "png" if "png" in mime else "jpg"
+                              with open(f"public/assets/backgrounds/{name}.{ext}", "wb") as f:
+                                  f.write(img_bytes)
+                              print(f"  OK {name} ({len(img_bytes)//1024}KB)")
+                              break
+              except Exception as e:
+                  print(f"  FAIL {name}: {e}")
+              time.sleep(3)
+          PYSCRIPT
+
+      - name: Download Pexels B-Roll
+        if: inputs.phase == 'all' || inputs.phase == 'pexels'
+        env:
+          PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+        run: |
+          python3 - <<'PYSCRIPT'
+          import json, urllib.request, os, time
+
+          key = os.environ["PEXELS_API_KEY"]
+          queries = {
+              "florida_aerial": "florida aerial coastline drone",
+              "courthouse": "courthouse exterior america",
+              "new_home": "new home keys celebration",
+              "data_dashboard": "data analytics dashboard computer",
+              "palm_trees": "palm trees sunset tropical"
+          }
+
+          for name, query in queries.items():
+              print(f"Searching: {query}")
+              req = urllib.request.Request(
+                  f"https://api.pexels.com/videos/search?query={query.replace(' ','+')}&per_page=1&orientation=landscape",
+                  headers={"Authorization": key}
+              )
+              try:
+                  resp = urllib.request.urlopen(req, timeout=30)
+                  data = json.loads(resp.read())
+                  videos = data.get("videos", [])
+                  if videos:
+                      files = videos[0].get("video_files", [])
+                      hd = [f for f in files if f.get("quality") == "hd"]
+                      url = (hd[0] if hd else files[0])["link"] if files else None
+                      if url:
+                          urllib.request.urlretrieve(url, f"public/footage/{name}.mp4")
+                          size = os.path.getsize(f"public/footage/{name}.mp4")
+                          print(f"  OK {name}.mp4 ({size//1024}KB)")
+                      else:
+                          print(f"  No video files for {name}")
+                  else:
+                      print(f"  No results for {name}")
+              except Exception as e:
+                  print(f"  FAIL {name}: {e}")
+              time.sleep(1)
+          PYSCRIPT
+
+      - name: Commit and Push
+        run: |
+          git config user.email "claude-code@biddeed.ai"
+          git config user.name "Claude Code"
+          git add public/
+          if git diff --cached --quiet; then
+            echo "No new assets to commit"
+          else
+            git commit -m "feat: Production Studio Hollywood assets — voiceover + backgrounds + B-roll"
+            git push
+            echo "Assets pushed to zonewise-video"
+          fi
+
+      - name: Report
+        env:
+          GH_PAT: ${{ secrets.GH_PAT }}
+        run: |
+          AUDIO=$(find public/audio -type f 2>/dev/null | wc -l)
+          IMGS=$(find public/assets -type f 2>/dev/null | wc -l)
+          VIDS=$(find public/footage -type f 2>/dev/null | wc -l)
+          echo "Audio: $AUDIO | Images: $IMGS | Videos: $VIDS"
+
+          curl -s -X POST \
+            -H "Authorization: token ${GH_PAT}" \
+            -H "Content-Type: application/json" \
+            "https://api.github.com/repos/breverdbidder/cli-anything-biddeed/issues/266/comments" \
+            -d "{\"body\":\"## Asset Generation Complete\n\n- Audio files: ${AUDIO}\n- Image assets: ${IMGS}\n- Video footage: ${VIDS}\n\nAll committed to zonewise-video main.\"}"
