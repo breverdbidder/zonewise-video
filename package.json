@@ -1,7 +1,7 @@
 {
   "name": "zonewise-video",
   "version": "2.0.0",
-  "description": "ZoneWise GTM video v2 — Remotion + light mode + Ariel's story + nationwide",
+  "description": "ZoneWise GTM video v2 \u2014 Remotion + light mode + Ariel's story + nationwide",
   "scripts": {
     "start": "npx remotion studio src/index.ts",
     "render": "npx remotion render src/index.ts ZoneWiseV2 out/zonewise-demo-v2.mp4 --fps=30 --width=1920 --height=1080 --concurrency=4",
@@ -13,7 +13,21 @@
     "@remotion/cli": "^4.0.0",
     "@remotion/bundler": "^4.0.0",
     "react": "^18.0.0",
-    "react-dom": "^18.0.0"
+    "react-dom": "^18.0.0",
+    "framer-motion": "^11.18.2",
+    "gsap": "^3.14.2",
+    "@react-three/drei": "^9.122.0",
+    "@react-three/fiber": "^8.18.0",
+    "three": "^0.183.2",
+    "zod": "^3.23.0",
+    "@remotion/three": "^4.0.0",
+    "@remotion/transitions": "^4.0.0",
+    "@remotion/light-leaks": "^4.0.0",
+    "@remotion/lottie": "^4.0.0",
+    "@remotion/google-fonts": "^4.0.0",
+    "@remotion/media": "^4.0.0",
+    "mapbox-gl": "^3.9.0",
+    "@turf/turf": "^7.0.0"
   },
   "devDependencies": {
     "@types/react": "^18.0.0",
