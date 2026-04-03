@@ -80,7 +80,7 @@ jobs:
           echo "Frames at 30fps: $(echo "$DURATION * 30" | bc | cut -d. -f1)"
 
       - name: Generate Scene Backgrounds (Gemini Image)
-        if: inputs.phase == 'all' || inputs.phase == 'images'
+        if: always() && (inputs.phase == 'all' || inputs.phase == 'images')
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
@@ -106,7 +106,7 @@ jobs:
               }).encode()
 
               req = urllib.request.Request(
-                  f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key={key}",
+                  f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp-image-generation:generateContent?key={key}",
                   data=payload,
                   headers={"Content-Type": "application/json"}
               )
@@ -135,7 +135,7 @@ jobs:
           PYSCRIPT
 
       - name: Download Pexels B-Roll
-        if: inputs.phase == 'all' || inputs.phase == 'pexels'
+        if: always() && (inputs.phase == 'all' || inputs.phase == 'pexels')
         env:
           PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
         run: |
@@ -179,6 +179,7 @@ jobs:
           PYSCRIPT
 
       - name: Commit and Push
+        if: always()
         run: |
           git config user.email "claude-code@biddeed.ai"
           git config user.name "Claude Code"
